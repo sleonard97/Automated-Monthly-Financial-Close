@@ -39,8 +39,8 @@ Observed tabs:
 
 Important tabs for v1:
 
-- `Detail`: current forecast detail by account.
-- `YTD`: model title, close month, YTD actuals, approved budget YTD, current forecast, notes.
+- `YTD`: model title, close month, visible account rows, YTD actuals, approved budget YTD, current forecast, notes.
+- `Detail`: supporting forecast detail, not the v1 source of truth for the account universe.
 
 Observed useful model labels:
 
@@ -58,4 +58,3 @@ Required tabs:
 - `Summary`
 - `Detail`
 - `Problems`
-

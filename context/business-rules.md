@@ -10,15 +10,24 @@
 
 - Actuals source: EdTec GL detail export.
 - Forecast source: school financial model workbook.
-- Forecast value: `Current Forecast` from the model's `Detail` tab.
+- Forecast account universe: visible account rows with data on the model's `YTD` tab.
+- Forecast value: `Current Forecast` from the model's `YTD` tab.
 - Close month: read from model text such as `As of Feb FY2026`.
 
 ## Matching
 
 - Primary matching key is `Account Number`.
-- Accounts present in actuals but not forecast must be listed on the `Problems` tab.
-- Accounts present in forecast but not actuals must be listed on the `Problems` tab.
+- Accounts present in actuals but not on a visible YTD forecast row must be listed on the `Problems` tab.
+- Forecast-only accounts do not need to be listed as problems in v1.
 - Do not silently drop unmatched accounts.
+- Hidden account rows in the forecast workbook are excluded from analysis.
+- Detailed GL benefit accounts should roll up to the visible forecast parent account when the parent exists. Example: `3303` and `3304` roll up to `3300`.
+- For benefits in the `3xxx` range, roll an unmatched detailed GL account to the matching `xx00` forecast parent when that parent is a visible benefit-related forecast account.
+- The `Summary` tab should have separate Revenue Accounts and Expense Accounts tables.
+- Each `Summary` table should list forecast-matched flagged accounts in the same relative order they appear on the visible `YTD` forecast tab.
+- Revenue and expense accounts with GL activity but no visible YTD forecast row should be appended to the relevant `Summary` table for review.
+- Balance sheet accounts, including `9xxx` accounts, should be excluded from the actual-only Summary list and unmatched-actual problem list.
+- In the Expense Accounts table, above-benchmark accounts should display red account text and red benchmark variance values; below-benchmark accounts should display black account text and black benchmark variance values.
 
 ## Actuals Calculation
 
@@ -65,4 +74,3 @@
 - Include a total actuals tie-out check where possible.
 - If a tie-out cannot be performed, explain why on the `Problems` tab.
 - The tool should create an issue report instead of failing silently when inputs are incomplete or malformed.
-
