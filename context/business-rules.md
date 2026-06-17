@@ -24,6 +24,7 @@
 - Detailed GL benefit accounts should roll up to the visible forecast parent account when the parent exists. Example: `3303` and `3304` roll up to `3300`.
 - For benefits in the `3xxx` range, roll an unmatched detailed GL account to the matching `xx00` forecast parent when that parent is a visible benefit-related forecast account.
 - The `Summary` tab should have separate Revenue Accounts and Expense Accounts tables.
+- The `Summary` tab should include one revenue stacked column chart and one expense stacked column chart comparing `YTD Actual` to `Current Forecast`. The revenue chart should include only accounts under the month-based benchmark; the expense chart should include only accounts over the month-based benchmark. Each bar segment should show a non-overlapping abbreviated dollar label such as `$600k`, `$10k`, or `$1M`, and each included account name should appear below the chart in the same left-to-right order as the bars.
 - Each `Summary` table should list forecast-matched flagged accounts in the same relative order they appear on the visible `YTD` forecast tab.
 - Revenue and expense accounts with GL activity but no visible YTD forecast row should be appended to the relevant `Summary` table for review.
 - Balance sheet accounts, including `9xxx` accounts, should be excluded from the actual-only Summary list and unmatched-actual problem list.

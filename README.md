@@ -26,7 +26,7 @@ If you leave off any file path, the script will ask for it.
 
 The generated workbook includes:
 
-- `Summary`: separate Revenue Accounts and Expense Accounts tables with variance fields.
+- `Summary`: separate Revenue Accounts and Expense Accounts tables with variance fields, plus stacked column charts comparing YTD Actual to Current Forecast. The revenue chart includes only accounts under the benchmark; the expense chart includes only accounts over the benchmark. Charts show abbreviated dollar labels spaced across each bar segment, with wrapped account-name labels below each chart in bar order.
 - `Detail`: imported GL detail for drill-down.
 - `Problems`: actual GL accounts not listed on a visible YTD forecast row, input issues, hidden-row scope notes, and the total actuals tie-out check.
 

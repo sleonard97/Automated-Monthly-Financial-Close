@@ -13,6 +13,7 @@ import argparse
 import datetime as dt
 import re
 import sys
+import textwrap
 import warnings
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
@@ -21,7 +22,10 @@ from typing import Any
 
 try:
     from openpyxl import Workbook, load_workbook
+    from openpyxl.chart import BarChart, Reference
+    from openpyxl.chart.label import DataLabelList
     from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
     from openpyxl.worksheet.table import Table, TableStyleInfo
 except ImportError as exc:  # pragma: no cover - dependency guard
     raise SystemExit(
@@ -30,6 +34,11 @@ except ImportError as exc:  # pragma: no cover - dependency guard
 
 
 XML_NS = {"ss": "urn:schemas-microsoft-com:office:spreadsheet"}
+CHART_LABEL_NUMBER_FORMAT = '[>=1000000]$0,,"M";[>0]$0,"k";;'
+SUMMARY_CHART_COL = 12
+SUMMARY_CHART_SOURCE_COL = 40
+SUMMARY_CHART_ROW_SPAN = 26
+SUMMARY_CHART_LABEL_GAP = 2
 
 GL_REQUIRED_HEADERS = {
     "account",
@@ -942,7 +951,7 @@ def write_summary_sheet(
     ]
 
     first_section_row = 8
-    next_row = write_summary_section(
+    next_row, revenue_range = write_summary_section(
         sheet=sheet,
         title="Revenue Accounts",
         start_row=first_section_row,
@@ -952,7 +961,7 @@ def write_summary_sheet(
         empty_message="No revenue accounts met the v1 flagging rules.",
         section_type="Revenue",
     )
-    write_summary_section(
+    _, expense_range = write_summary_section(
         sheet=sheet,
         title="Expense Accounts",
         start_row=next_row + 2,
@@ -962,6 +971,39 @@ def write_summary_sheet(
         empty_message="No expense accounts met the v1 flagging rules.",
         section_type="Expense",
     )
+    revenue_chart_rows = chart_rows_for_benchmark(revenue_rows, "Revenue")
+    expense_chart_rows = chart_rows_for_benchmark(expense_rows, "Expense")
+    revenue_chart_source = write_chart_source(
+        sheet=sheet,
+        rows=revenue_chart_rows,
+        start_row=first_section_row,
+        start_col=SUMMARY_CHART_SOURCE_COL,
+    )
+    expense_chart_source = write_chart_source(
+        sheet=sheet,
+        rows=expense_chart_rows,
+        start_row=first_section_row,
+        start_col=SUMMARY_CHART_SOURCE_COL + 4,
+    )
+    revenue_chart_row = first_section_row
+    revenue_label_row = revenue_chart_row + SUMMARY_CHART_ROW_SPAN
+    expense_chart_row = revenue_label_row + SUMMARY_CHART_LABEL_GAP + 6
+    expense_label_row = expense_chart_row + SUMMARY_CHART_ROW_SPAN
+    add_actual_forecast_chart(
+        sheet=sheet,
+        title="Revenue Under Benchmark: YTD Actuals and Current Forecast",
+        source_range=revenue_chart_source,
+        anchor=f"{get_column_letter(SUMMARY_CHART_COL)}{revenue_chart_row}",
+    )
+    add_actual_forecast_chart(
+        sheet=sheet,
+        title="Expense Over Benchmark: YTD Actuals and Current Forecast",
+        source_range=expense_chart_source,
+        anchor=f"{get_column_letter(SUMMARY_CHART_COL)}{expense_chart_row}",
+    )
+    write_chart_account_labels(sheet, revenue_chart_rows, revenue_label_row, SUMMARY_CHART_COL)
+    write_chart_account_labels(sheet, expense_chart_rows, expense_label_row, SUMMARY_CHART_COL)
+    hide_chart_source_columns(sheet, SUMMARY_CHART_SOURCE_COL, SUMMARY_CHART_SOURCE_COL + 6)
 
     sheet.freeze_panes = f"A{first_section_row}"
     set_common_widths(
@@ -977,6 +1019,13 @@ def write_summary_sheet(
             "H": 16,
             "I": 16,
             "J": 18,
+            "L": 18,
+            "M": 18,
+            "N": 18,
+            "O": 18,
+            "P": 18,
+            "Q": 18,
+            "R": 18,
         },
     )
 
@@ -990,7 +1039,7 @@ def write_summary_section(
     table_name: str,
     empty_message: str,
     section_type: str,
-) -> int:
+) -> tuple[int, tuple[int, int] | None]:
     title_fill = PatternFill("solid", fgColor="D9EAF7")
     sheet.cell(start_row, 1).value = title
     sheet.cell(start_row, 1).font = Font(bold=True, size=12)
@@ -1014,12 +1063,140 @@ def write_summary_section(
         last_row = header_row + len(rows)
         add_table(sheet, header_row, 1, last_row, len(headers), table_name)
         format_summary_data_rows(sheet, header_row + 1, last_row, section_type)
-        return last_row + 1
+        return last_row + 1, (header_row + 1, last_row)
 
     message_row = header_row + 1
     sheet.cell(message_row, 1).value = empty_message
     sheet.cell(message_row, 1).font = Font(italic=True, color="666666")
-    return message_row + 1
+    return message_row + 1, None
+
+
+def chart_rows_for_benchmark(rows: list[dict[str, Any]], section_type: str) -> list[dict[str, Any]]:
+    chart_rows = []
+    for row in rows:
+        benchmark_variance = row.get("Benchmark Variance $")
+        if benchmark_variance is None:
+            continue
+        if section_type == "Revenue" and to_number(benchmark_variance) < 0:
+            chart_rows.append(row)
+        elif section_type == "Expense" and to_number(benchmark_variance) > 0:
+            chart_rows.append(row)
+    return chart_rows
+
+
+def write_chart_source(
+    sheet,
+    rows: list[dict[str, Any]],
+    start_row: int,
+    start_col: int,
+) -> tuple[int, int, int, int] | None:
+    if not rows:
+        return None
+
+    headers = ["Account Name", "YTD Actual", "Current Forecast"]
+    for col_offset, header in enumerate(headers):
+        sheet.cell(start_row, start_col + col_offset).value = header
+
+    for row_offset, row in enumerate(rows, start=1):
+        sheet.cell(start_row + row_offset, start_col).value = row.get("Account Name")
+        sheet.cell(start_row + row_offset, start_col + 1).value = row.get("YTD Actual")
+        sheet.cell(start_row + row_offset, start_col + 2).value = row.get("Current Forecast")
+        sheet.cell(start_row + row_offset, start_col + 1).number_format = CHART_LABEL_NUMBER_FORMAT
+        sheet.cell(start_row + row_offset, start_col + 2).number_format = CHART_LABEL_NUMBER_FORMAT
+
+    return start_row, start_row + len(rows), start_col, start_col + len(headers) - 1
+
+
+def hide_chart_source_columns(sheet, first_col: int, last_col: int) -> None:
+    for col_index in range(first_col, last_col + 1):
+        sheet.column_dimensions[get_column_letter(col_index)].hidden = True
+
+
+def write_chart_account_labels(
+    sheet,
+    rows: list[dict[str, Any]],
+    start_row: int,
+    start_col: int,
+) -> None:
+    if not rows:
+        return
+
+    max_lines = 1
+    fill = PatternFill("solid", fgColor="F3F6FA")
+    for offset, row in enumerate(rows):
+        account_name = str(row.get("Account Name") or "")
+        label = wrap_chart_account_name(account_name)
+        max_lines = max(max_lines, label.count("\n") + 1)
+        cell = sheet.cell(start_row, start_col + offset)
+        cell.value = label
+        cell.alignment = Alignment(horizontal="center", vertical="top", wrap_text=True)
+        cell.font = Font(size=8)
+        cell.fill = fill
+        sheet.column_dimensions[get_column_letter(start_col + offset)].width = 12
+
+    sheet.row_dimensions[start_row].height = min(120, max(54, max_lines * 13))
+
+
+def wrap_chart_account_name(account_name: str) -> str:
+    return "\n".join(textwrap.wrap(account_name, width=14, break_long_words=False))
+
+
+def add_actual_forecast_chart(
+    sheet,
+    title: str,
+    source_range: tuple[int, int, int, int] | None,
+    anchor: str,
+) -> None:
+    if not source_range:
+        return
+
+    header_row, last_row, first_col, last_col = source_range
+    first_row = header_row + 1
+    chart = BarChart()
+    chart.type = "col"
+    chart.grouping = "stacked"
+    chart.overlap = 100
+    chart.visible_cells_only = False
+    chart.title = title
+    chart.style = 10
+    if chart.legend:
+        chart.legend.position = "r"
+    chart.width = 30
+    chart.height = 13
+    chart.gapWidth = 75
+    chart.x_axis.title = None
+    chart.x_axis.tickLblPos = "none"
+    chart.x_axis.tickLblSkip = 1
+    chart.x_axis.tickMarkSkip = 1
+    chart.y_axis.title = None
+    chart.y_axis.delete = True
+    chart.y_axis.majorGridlines = None
+    chart.y_axis.tickLblPos = "none"
+
+    data = Reference(sheet, min_col=first_col + 1, max_col=last_col, min_row=header_row, max_row=last_row)
+    categories = Reference(sheet, min_col=first_col, min_row=first_row, max_row=last_row)
+    chart.add_data(data, titles_from_data=True)
+    chart.set_categories(categories)
+
+    series_colors = ["4472C4", "70AD47"]
+    label_positions = ["inBase", "inEnd"]
+    for series, color, label_position in zip(chart.series, series_colors, label_positions):
+        series.graphicalProperties.solidFill = color
+        series.graphicalProperties.line.solidFill = color
+        series.dLbls = make_data_labels(label_position)
+
+    sheet.add_chart(chart, anchor)
+
+
+def make_data_labels(position: str) -> DataLabelList:
+    labels = DataLabelList()
+    labels.showVal = True
+    labels.showLegendKey = False
+    labels.showCatName = False
+    labels.showSerName = False
+    labels.numFmt = CHART_LABEL_NUMBER_FORMAT
+    labels.dLblPos = position
+    return labels
 
 
 def format_summary_data_rows(sheet, first_row: int, last_row: int, section_type: str) -> None:

@@ -28,7 +28,7 @@ The tool is not making final financial conclusions. It performs auditable calcul
 
 ### Output Workbook
 
-- `Summary` tab: separate Revenue Accounts and Expense Accounts tables with account number/name, YTD actual, current forecast, remaining dollars, percent used, benchmark variance, transaction count, and latest activity date.
+- `Summary` tab: separate Revenue Accounts and Expense Accounts tables with account number/name, YTD actual, current forecast, remaining dollars, percent used, benchmark variance, transaction count, latest activity date, and stacked YTD Actual vs. Current Forecast column charts. The revenue chart should include only under-benchmark accounts, the expense chart should include only over-benchmark accounts, each chart should label bar segments with spaced abbreviated dollar values, and wrapped account names should appear below each chart in bar order.
 - `Detail` tab: full imported GL detail for analyst drill-down.
 - `Problems` tab: actual GL accounts not listed on a visible YTD forecast row, file/sheet/column issues, hidden-row scope notes, and total actuals tie-out status.
 - Actual-only revenue and expense accounts from the GL file should also appear on the `Summary` tab. Balance sheet accounts such as `9xxx` remain excluded.
@@ -56,7 +56,7 @@ The tool is not making final financial conclusions. It performs auditable calcul
    - Default sensitivity: review accounts meaningfully over the month-based benchmark and material by roughly `$5k and 10%`.
    - Flag unmatched accounts separately.
 7. Generate the output workbook with `Summary`, `Detail`, and `Problems`.
-8. Optional polish after core workflow works: add simple charts/KPI visuals showing top flagged accounts and forecast usage.
+8. Add simple stacked column charts showing revenue and expense YTD actuals compared to current forecast.
 
 ## Test Plan
 
